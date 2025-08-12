@@ -2,9 +2,9 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,27 +17,35 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zip unzip libgl1-mesa-dev libgles2-mesa-dev
-          pip install --upgrade pip setuptools wheel buildozer cython
+          python -m pip install --upgrade pip setuptools wheel
+          pip install buildozer cython
 
-      - name: Install Android SDK Command-line Tools
+      - name: Install Android SDK & cmdline-tools
         run: |
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
-          curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip commandlinetools.zip
-          rm commandlinetools.zip
-          mv cmdline-tools latest
-
-      - name: Set environment variables
-        run: |
-          echo "ANDROIDSDK=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "PATH=$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip commandlinetools-linux-11076708_latest.zip
+          rm commandlinetools-linux-11076708_latest.zip
+          mkdir latest
+          mv cmdline-tools/* latest/
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk \
+            "platform-tools" "platforms;android-31" "build-tools;33.0.2"
 
       - name: Build APK
-        run: buildozer -v android debug
+        run: |
+          export ANDROIDSDK=$HOME/android-sdk
+          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r23b
+          export PATH=$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH
+          buildozer android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: bin/*.apk
