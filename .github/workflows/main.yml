@@ -1,23 +1,20 @@
-name: Build APK
+name: Build
 
 on:
   push:
     branches:
       - main
   pull_request:
+    branches:
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # Используем Ubuntu 22.04, где есть нужные пакеты
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-venv python3-distutils
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -25,15 +22,17 @@ jobs:
           python-version: '3.10'
 
       - name: Install Python dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install flask requests # тут добавь все свои зависимости
 
       - name: Build APK
         run: |
-          # Тут твоя команда сборки APK, например:
-          ./gradlew assembleRelease
+          echo "Сборка APK тут" 
+          # добавь сюда свою команду сборки
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          name: my-apk
+          path: path/to/your.apk
