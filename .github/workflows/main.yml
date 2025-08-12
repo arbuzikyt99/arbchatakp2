@@ -1,10 +1,10 @@
-name: Build APK
+name: Build Release APK
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  pull_request:
 
 jobs:
   build:
@@ -15,16 +15,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install buildozer cython
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk wget unzip git
 
-      - name: Install Android SDK & cmdline-tools
+      - name: Install Android SDK Command-line Tools
         run: |
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
@@ -35,17 +35,36 @@ jobs:
           mv cmdline-tools/* latest/
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk \
-            "platform-tools" "platforms;android-31" "build-tools;33.0.2"
+            "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;23.1.7779620"
 
-      - name: Build APK
+      - name: Install Python dependencies
         run: |
-          export ANDROIDSDK=$HOME/android-sdk
-          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r23b
-          export PATH=$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH
-          buildozer android debug
+          python -m pip install --upgrade pip
+          pip install buildozer cython
 
-      - name: Upload APK
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > my-release-key.keystore
+
+      - name: Build Release APK
+        run: |
+          buildozer android release
+
+      - name: Sign APK
+        run: |
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore my-release-key.keystore \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -keypass "${{ secrets.KEY_PASSWORD }}" \
+            bin/*-release-unsigned.apk "${{ secrets.KEY_ALIAS }}"
+
+      - name: Align APK
+        run: |
+          $HOME/android-sdk/build-tools/33.0.2/zipalign -v 4 \
+            bin/*-release-unsigned.apk bin/app-release.apk
+
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: bin/*.apk
+          path: bin/app-release.apk
