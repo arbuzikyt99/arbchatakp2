@@ -1,38 +1,50 @@
-name: Build
+name: build
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # Клонируем репозиторий
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Устанавливаем Python 3.10
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: 3.10
 
-      - name: Install Python dependencies
+      # Устанавливаем системные зависимости для Buildozer
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            python3-pip python3-setuptools python3-wheel \
+            git zip unzip openjdk-17-jdk \
+            libncurses5 libstdc++6 libffi-dev libssl-dev \
+            libsqlite3-dev zlib1g zlib1g-dev
+
+      # Устанавливаем buildozer
+      - name: Install Buildozer
         run: |
           pip install --upgrade pip
-          pip install flask requests # тут добавь все свои зависимости
+          pip install buildozer cython
 
+      # Собираем APK
       - name: Build APK
         run: |
-          echo "Сборка APK тут" 
-          # добавь сюда свою команду сборки
+          buildozer -v android debug
 
+      # Загружаем APK как артефакт
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: my-apk
-          path: path/to/your.apk
+          path: bin/*.apk
